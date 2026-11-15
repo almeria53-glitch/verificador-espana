@@ -2,30 +2,44 @@ package es.verificador.app
 
 import android.Manifest
 import android.app.Activity
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
+import android.net.Uri
 import android.os.Bundle
+import android.text.InputFilter
+import android.text.InputType
 import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
+
     private lateinit var plateInput: EditText
     private lateinit var resultBox: TextView
+
+    private val registryUrl =
+        "https://apps.fomento.gob.es/crgt/servlet/ServletController?accion=inicio&modulo=datosconsulta"
 
     private val cameraPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) openScanner()
-        else resultBox.text = "Para escanear matrículas necesitas permitir el acceso a la cámara."
+        else Toast.makeText(this, "Necesitas permitir la cámara.", Toast.LENGTH_LONG).show()
     }
 
     private val scannerResult = registerForActivityResult(
@@ -46,88 +60,153 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun buildScreen() {
+        val scroll = ScrollView(this).apply {
+            fillViewport = true
+            isVerticalScrollBarEnabled = true
+            setBackgroundColor(Color.rgb(244, 247, 251))
+        }
+
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(24), dp(30), dp(24), dp(24))
-            setBackgroundColor(Color.rgb(246, 248, 251))
+            setPadding(dp(20), dp(24), dp(20), dp(32))
         }
+
+        scroll.addView(
+            root,
+            ScrollView.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        )
 
         val brand = TextView(this).apply {
             text = "VERIFICADOR"
-            textSize = 28f
-            setTextColor(Color.rgb(18, 59, 102))
+            textSize = 29f
+            setTextColor(Color.rgb(20, 58, 99))
             gravity = Gravity.CENTER
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            typeface = Typeface.DEFAULT_BOLD
         }
         root.addView(brand, matchWrap())
 
         val subtitle = TextView(this).apply {
             text = "IDENTIFICACIÓN DE VEHÍCULOS · ESPAÑA"
-            textSize = 12f
-            setTextColor(Color.DKGRAY)
+            textSize = 13f
+            setTextColor(Color.rgb(90, 103, 118))
             gravity = Gravity.CENTER
-            setPadding(0, dp(6), 0, dp(30))
+            setPadding(0, dp(7), 0, dp(28))
         }
         root.addView(subtitle, matchWrap())
 
         val heading = TextView(this).apply {
             text = "Consulta una matrícula"
-            textSize = 21f
+            textSize = 23f
             setTextColor(Color.rgb(30, 43, 58))
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            typeface = Typeface.DEFAULT_BOLD
         }
         root.addView(heading, matchWrap())
 
+        val explanation = TextView(this).apply {
+            text = "Escribe la matrícula o utiliza la cámara para leerla."
+            textSize = 15f
+            setTextColor(Color.rgb(90, 103, 118))
+            setPadding(0, dp(6), 0, dp(14))
+        }
+        root.addView(explanation, matchWrap())
+
         plateInput = EditText(this).apply {
             hint = "Ejemplo: 1234 ABC"
-            textSize = 20f
+            textSize = 22f
             isSingleLine = true
-            setTextColor(Color.BLACK)
+            inputType = InputType.TYPE_CLASS_TEXT or
+                InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
+            setTextColor(Color.rgb(20, 30, 42))
+            setHintTextColor(Color.GRAY)
             setPadding(dp(16), dp(14), dp(16), dp(14))
-            setBackgroundColor(Color.WHITE)
-            filters = arrayOf(android.text.InputFilter.AllCaps())
+            background = rounded(Color.WHITE, 12)
+            filters = arrayOf(InputFilter.AllCaps(), InputFilter.LengthFilter(9))
         }
-        val inputParams = matchWrap().apply { topMargin = dp(14); bottomMargin = dp(14) }
-        root.addView(plateInput, inputParams)
+        root.addView(
+            plateInput,
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(60)
+            ).apply { bottomMargin = dp(14) }
+        )
 
-        val scanButton = Button(this).apply {
-            text = "📷  ESCANEAR MATRÍCULA"
-            isAllCaps = false
-            setOnClickListener {
-                if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.CAMERA)
-                    == PackageManager.PERMISSION_GRANTED) openScanner()
-                else cameraPermission.launch(Manifest.permission.CAMERA)
-            }
+        addButton(
+            root,
+            "📷  Escanear matrícula",
+            Color.rgb(31, 83, 132),
+            Color.WHITE,
+            0
+        ) {
+            if (ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.CAMERA
+                ) == PackageManager.PERMISSION_GRANTED
+            ) openScanner()
+            else cameraPermission.launch(Manifest.permission.CAMERA)
         }
-        root.addView(scanButton, matchWrap())
 
-        val searchButton = Button(this).apply {
-            text = "CONSULTAR MATRÍCULA"
-            isAllCaps = false
-            setOnClickListener { verifyPlate() }
+        addButton(
+            root,
+            "Preparar consulta",
+            Color.rgb(225, 232, 240),
+            Color.rgb(30, 43, 58),
+            10
+        ) {
+            verifyPlate()
         }
-        val searchParams = matchWrap().apply { topMargin = dp(8) }
-        root.addView(searchButton, searchParams)
+
+        val resultTitle = TextView(this).apply {
+            text = "RESULTADO"
+            textSize = 14f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.rgb(31, 83, 132))
+            setPadding(0, dp(25), 0, dp(9))
+        }
+        root.addView(resultTitle, matchWrap())
 
         resultBox = TextView(this).apply {
-            text = "Elige escanear la matrícula o escribirla manualmente."
-            textSize = 15f
-            setTextColor(Color.rgb(55, 65, 75))
-            setPadding(dp(16), dp(18), dp(16), dp(18))
-            setBackgroundColor(Color.WHITE)
+            text = "Todavía no se ha consultado ninguna matrícula."
+            textSize = 16f
+            setTextColor(Color.rgb(45, 55, 68))
+            setPadding(dp(17), dp(18), dp(17), dp(18))
+            setLineSpacing(dp(4).toFloat(), 1f)
+            background = rounded(Color.WHITE, 12)
         }
-        val resultParams = matchWrap().apply { topMargin = dp(24) }
-        root.addView(resultBox, resultParams)
+        root.addView(resultBox, matchWrap())
 
-        val note = TextView(this).apply {
-            text = "La consulta oficial de TAXI/VTC se conectará cuando dispongamos de acceso autorizado a los registros."
-            textSize = 12f
-            setTextColor(Color.GRAY)
-            setPadding(dp(4), dp(18), dp(4), 0)
+        addButton(
+            root,
+            "ABRIR REGISTRO OFICIAL",
+            Color.rgb(20, 58, 99),
+            Color.WHITE,
+            16
+        ) {
+            openOfficialRegistry()
         }
-        root.addView(note, matchWrap())
 
-        setContentView(root)
+        val instructions = TextView(this).apply {
+            text = "CÓMO HACER LA CONSULTA\n\n" +
+                "1. Prepara la matrícula en esta aplicación.\n" +
+                "2. Pulsa ABRIR REGISTRO OFICIAL.\n" +
+                "3. En la web del Ministerio selecciona «Vehículo».\n" +
+                "4. Selecciona «Matrícula» e introduce la matrícula copiada.\n" +
+                "5. Pulsa el botón de búsqueda del portal.\n\n" +
+                "IMPORTANTE\n" +
+                "El resultado del REAT no equivale por sí solo a una " +
+                "confirmación de TAXI o VTC. Si no aparece un vehículo, " +
+                "eso tampoco demuestra que sea particular. La aplicación " +
+                "todavía no recibe automáticamente la respuesta del registro."
+            textSize = 14f
+            setTextColor(Color.rgb(83, 94, 107))
+            setPadding(dp(4), dp(20), dp(4), 0)
+            setLineSpacing(dp(3).toFloat(), 1f)
+        }
+        root.addView(instructions, matchWrap())
+
+        setContentView(scroll)
     }
 
     private fun verifyPlate() {
@@ -135,19 +214,96 @@ class MainActivity : AppCompatActivity() {
             .uppercase(Locale.ROOT)
             .replace(" ", "")
             .replace("-", "")
+
         if (!plate.matches(Regex("\\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}"))) {
-            resultBox.text = "Matrícula no reconocida. Comprueba el formato español: 1234 ABC."
+            resultBox.text =
+                "MATRÍCULA NO VÁLIDA\n\nComprueba el formato español. Ejemplo: 1234 ABC."
             return
         }
-        resultBox.text = "MATRÍCULA: ${plate.take(4)} ${plate.drop(4)}\n\nESTADO: PENDIENTE DE VERIFICACIÓN OFICIAL\n\nLa matrícula se ha leído correctamente, pero todavía no se ha consultado ningún registro oficial. VERIFICADOR no dará por confirmado que sea TAXI, VTC o particular hasta disponer de una fuente autorizada."
+
+        plateInput.setText("${plate.take(4)} ${plate.drop(4)}")
+
+        resultBox.text =
+            "MATRÍCULA: ${plate.take(4)} ${plate.drop(4)}\n\n" +
+            "ESTADO: PENDIENTE DE CONSULTA OFICIAL\n\n" +
+            "La matrícula tiene un formato válido. " +
+            "Todavía no se ha confirmado si el vehículo es TAXI, VTC " +
+            "u otro tipo de vehículo.\n\n" +
+            "Pulsa «ABRIR REGISTRO OFICIAL» para continuar la consulta."
+    }
+
+    private fun openOfficialRegistry() {
+        val plate = plateInput.text.toString()
+            .uppercase(Locale.ROOT)
+            .replace(" ", "")
+            .replace("-", "")
+
+        if (!plate.matches(Regex("\\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}"))) {
+            verifyPlate()
+            return
+        }
+
+        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        clipboard.setPrimaryClip(ClipData.newPlainText("Matrícula", plate))
+
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(registryUrl)))
+            Toast.makeText(
+                this,
+                "Matrícula copiada. Pégala en el registro oficial.",
+                Toast.LENGTH_LONG
+            ).show()
+        } catch (_: Exception) {
+            Toast.makeText(
+                this,
+                "No se pudo abrir el portal oficial.",
+                Toast.LENGTH_LONG
+            ).show()
+        }
     }
 
     private fun openScanner() {
         scannerResult.launch(Intent(this, ScannerActivity::class.java))
     }
 
-    private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
+    private fun addButton(
+        root: LinearLayout,
+        label: String,
+        backgroundColor: Int,
+        textColor: Int,
+        top: Int,
+        action: () -> Unit
+    ) {
+        val button = Button(this).apply {
+            text = label
+            textSize = 16f
+            isAllCaps = false
+            setTextColor(textColor)
+            background = rounded(backgroundColor, 12)
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+            minHeight = dp(54)
+            setOnClickListener { action() }
+        }
+        root.addView(
+            button,
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(top) }
+        )
+    }
+
+    private fun rounded(color: Int, radius: Int) =
+        GradientDrawable().apply {
+            setColor(color)
+            cornerRadius = dp(radius).toFloat()
+        }
+
+    private fun dp(value: Int) =
+        (value * resources.displayMetrics.density).toInt()
+
     private fun matchWrap() = LinearLayout.LayoutParams(
-        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ViewGroup.LayoutParams.MATCH_PARENT,
+        ViewGroup.LayoutParams.WRAP_CONTENT
     )
 }
