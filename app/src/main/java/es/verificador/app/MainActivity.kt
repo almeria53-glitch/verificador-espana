@@ -81,7 +81,7 @@ class MainActivity : AppCompatActivity() {
         plateInput = EditText(this).apply {
             hint = "Ejemplo: 1234 ABC"
             textSize = 20f
-            singleLine = true
+            isSingleLine = true
             setTextColor(Color.BLACK)
             setPadding(dp(16), dp(14), dp(16), dp(14))
             setBackgroundColor(Color.WHITE)
