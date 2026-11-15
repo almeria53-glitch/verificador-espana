@@ -61,7 +61,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun buildScreen() {
         val scroll = ScrollView(this).apply {
-            fillViewport = true
+            setFillViewport(true)
             isVerticalScrollBarEnabled = true
             setBackgroundColor(Color.rgb(244, 247, 251))
         }
@@ -73,7 +73,7 @@ class MainActivity : AppCompatActivity() {
 
         scroll.addView(
             root,
-            ScrollView.LayoutParams(
+            android.widget.FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
             )
